@@ -1,1 +1,58 @@
-node_modules
+# Learn more https://docs.expo.dev/guides/using-git
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native builds & credentials
+/android
+/ios
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.keystore
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# Debug / logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+logs/
+
+# Environment variables (keep secrets out of git)
+.env
+.env.*
+!.env.example
+
+# TypeScript
+*.tsbuildinfo
+
+# Claude Code (local, machine-specific settings)
+.claude/settings.local.json
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+*.pem
+Thumbs.db
+ehthumbs.db
+Desktop.ini
