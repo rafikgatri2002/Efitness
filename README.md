@@ -31,7 +31,7 @@ export const BASE_URL = 'http://192.168.1.100:8000';
 ## 4) Run
 
 ```bash
-npm run start
+npx expo start --clear
 ```
 
 Then open Android, iOS, or web.
