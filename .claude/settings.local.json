@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.py$|exerc\")",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:8000/auth/register\" -Method POST -ContentType \"application/json\" -Body '{\"name\":\"Test User\",\"email\":\"test@test.com\",\"password\":\"123456\"}' -ErrorAction Stop 2>&1)",
+      "WebSearch"
+    ]
+  }
+}
