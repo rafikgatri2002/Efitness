@@ -26,11 +26,13 @@ import {
   getApiErrorMessage,
   getExercisesByMuscle
 } from '../services/api';
+import { getMuscleImage } from '../assets/muscles';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Exercises'>;
 
 export function ExercisesScreen({ route, navigation }: Props) {
   const { muscle, emoji } = route.params;
+  const headerImage = getMuscleImage(muscle);
   const [items, setItems] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -136,7 +138,11 @@ export function ExercisesScreen({ route, navigation }: Props) {
           <Text style={styles.title}>{muscle}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
-        <Text style={styles.headerEmoji}>{emoji}</Text>
+        {headerImage ? (
+          <Image source={headerImage} style={styles.headerImage} resizeMode="cover" />
+        ) : (
+          <Text style={styles.headerEmoji}>{emoji}</Text>
+        )}
       </View>
 
       {loading ? (
@@ -284,6 +290,13 @@ const styles = StyleSheet.create({
   },
   headerEmoji: {
     fontSize: 26
+  },
+  headerImage: {
+    width: 56,
+    height: 56,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
   centered: {
     flex: 1,

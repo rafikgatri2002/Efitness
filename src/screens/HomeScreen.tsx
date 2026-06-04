@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   RefreshControl,
   StyleSheet,
   Text,
@@ -16,6 +17,7 @@ import { COLORS, FONT, RADIUS, SPACING } from '../components/theme';
 import { HomeStackParamList } from '../navigation/types';
 import { useAuth } from '../services/AuthContext';
 import { getApiErrorMessage, getMuscles, MuscleItem } from '../services/api';
+import { getMuscleImage } from '../assets/muscles';
 
 const fallbackMuscles = [
   { muscle: 'Chest', emoji: '🫁' },
@@ -128,19 +130,28 @@ export function HomeScreen() {
       }
       renderItem={({ item }) => {
         const countLabel = item.exercise_count === 0 ? 'No exercises yet' : `${item.exercise_count} exercises`;
+        const image = getMuscleImage(item.muscle);
 
         return (
           <ScalePressable
             style={styles.card}
             onPress={() => navigation.navigate('Exercises', { muscle: item.muscle, emoji: item.emoji })}
           >
-            {item.exercise_count > 0 ? <View style={styles.liveDot} /> : null}
-            <Text style={styles.cardEmoji}>{item.emoji}</Text>
+            {image ? (
+              <View style={styles.cardMedia}>
+                <Image source={image} style={styles.cardImage} resizeMode="cover" />
+              </View>
+            ) : (
+              <View style={[styles.cardMedia, styles.cardEmojiMedia]}>
+                <Text style={styles.cardEmoji}>{item.emoji}</Text>
+              </View>
+            )}
             <Text style={styles.cardTitle}>{item.muscle}</Text>
             <Text style={styles.cardMeta}>{countLabel}</Text>
             {item.last_trained ? (
               <Text style={styles.cardLast}>Last: {formatDate(item.last_trained)}</Text>
             ) : null}
+            {item.exercise_count > 0 ? <View style={styles.liveDot} /> : null}
           </ScalePressable>
         );
       }}
@@ -199,10 +210,26 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     minHeight: 150,
     marginBottom: SPACING.md,
-    position: 'relative'
+    position: 'relative',
+    overflow: 'hidden'
+  },
+  cardMedia: {
+    marginHorizontal: -SPACING.md,
+    marginTop: -SPACING.md,
+    height: 104,
+    marginBottom: SPACING.sm
+  },
+  cardEmojiMedia: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface2
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%'
   },
   cardEmoji: {
-    fontSize: 30
+    fontSize: 46
   },
   cardTitle: {
     marginTop: SPACING.sm,
