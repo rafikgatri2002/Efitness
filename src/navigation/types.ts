@@ -14,3 +14,8 @@ export type MainTabParamList = {
   Progress: undefined;
   AICoach: undefined;
 };
+
+export type CoachStackParamList = {
+  Chat: { conversationId?: string } | undefined;
+  Conversations: undefined;
+};

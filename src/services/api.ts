@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-export const BASE_URL = 'http://192.168.1.139:8000';
+export const BASE_URL = 'http://192.168.1.186:8000';
 const TOKEN_KEY = 'ironlog_token';
 
 export const api = axios.create({
@@ -177,9 +177,72 @@ export const getExerciseProgress = async (exerciseId: string, days = 120) => {
 
 export const sendChat = async (payload: {
   message: string;
-  history: ChatMessagePayload[];
+  conversation_id?: string;
+  reference_labels?: string[];
 }) => {
-  const { data } = await api.post<{ reply: string }>('/chat', payload);
+  const { data } = await api.post<{ reply: string; conversation_id: string }>('/chat', payload);
+  return data;
+};
+
+// ── Conversations (persistent chat memory, import, published references) ──
+export interface Conversation {
+  id: string;
+  title?: string | null;
+  source: string; // 'chat' | 'gemini_import'
+  is_published: boolean;
+  label?: string | null;
+  message_count: number;
+  has_summary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationMessage {
+  id: string;
+  seq: number;
+  role: 'user' | 'assistant';
+  content: string;
+  token_count: number;
+  created_at: string;
+}
+
+export interface ConversationDetail extends Conversation {
+  summary?: string | null;
+  messages: ConversationMessage[];
+}
+
+export const getConversations = async (params?: {
+  source?: string;
+  is_published?: boolean;
+  limit?: number;
+  skip?: number;
+}) => {
+  const { data } = await api.get<Conversation[]>('/conversations', { params });
+  return data;
+};
+
+export const getConversation = async (
+  id: string,
+  params?: { limit?: number; skip?: number }
+) => {
+  const { data } = await api.get<ConversationDetail>(`/conversations/${id}`, { params });
+  return data;
+};
+
+export const importConversation = async (payload: {
+  title?: string;
+  raw_text?: string;
+  messages?: ChatMessagePayload[];
+}) => {
+  const { data } = await api.post<Conversation>('/conversations/import', payload);
+  return data;
+};
+
+export const updateConversation = async (
+  id: string,
+  payload: { title?: string; is_published?: boolean; label?: string }
+) => {
+  const { data } = await api.put<Conversation>(`/conversations/${id}`, payload);
   return data;
 };
 

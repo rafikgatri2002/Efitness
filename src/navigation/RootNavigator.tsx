@@ -12,10 +12,17 @@ import { ExercisesScreen } from '../screens/ExercisesScreen';
 import { SessionScreen } from '../screens/SessionScreen';
 import { ProgressScreen } from '../screens/ProgressScreen';
 import { ChatScreen } from '../screens/ChatScreen';
-import { AuthStackParamList, HomeStackParamList, MainTabParamList } from './types';
+import { ConversationsScreen } from '../screens/ConversationsScreen';
+import {
+  AuthStackParamList,
+  CoachStackParamList,
+  HomeStackParamList,
+  MainTabParamList
+} from './types';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+const CoachStack = createNativeStackNavigator<CoachStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 function HomeIcon({ color }: { color: string }) {
@@ -58,6 +65,15 @@ function HomeStackNavigator() {
   );
 }
 
+function CoachStackNavigator() {
+  return (
+    <CoachStack.Navigator screenOptions={{ headerShown: false }}>
+      <CoachStack.Screen name="Chat" component={ChatScreen} />
+      <CoachStack.Screen name="Conversations" component={ConversationsScreen} />
+    </CoachStack.Navigator>
+  );
+}
+
 function MainTabsNavigator() {
   return (
     <Tab.Navigator
@@ -85,7 +101,7 @@ function MainTabsNavigator() {
     >
       <Tab.Screen name="HomeTab" component={HomeStackNavigator} />
       <Tab.Screen name="Progress" component={ProgressScreen} />
-      <Tab.Screen name="AICoach" component={ChatScreen} />
+      <Tab.Screen name="AICoach" component={CoachStackNavigator} />
     </Tab.Navigator>
   );
 }

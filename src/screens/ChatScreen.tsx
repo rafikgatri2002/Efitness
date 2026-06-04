@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   KeyboardAvoidingView,
   Platform,
@@ -10,10 +11,21 @@ import {
   TextInput,
   View
 } from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import { COLORS, FONT, RADIUS, SPACING } from '../components/theme';
 import { ScalePressable } from '../components/ScalePressable';
-import { getApiErrorMessage, sendChat } from '../services/api';
+import { CoachStackParamList } from '../navigation/types';
+import {
+  ConversationMessage,
+  getApiErrorMessage,
+  getConversation,
+  getConversations,
+  sendChat
+} from '../services/api';
+
+type Props = NativeStackScreenProps<CoachStackParamList, 'Chat'>;
 
 type Message = {
   id: string;
@@ -22,11 +34,25 @@ type Message = {
   timestamp: string;
 };
 
+// How many recent messages to load when resuming a conversation.
+const PAGE = 50;
+
 function nowStamp() {
   return new Date().toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+function formatTime(iso: string) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function toUiMessage(m: ConversationMessage): Message {
+  return { id: m.id, role: m.role, content: m.content, timestamp: formatTime(m.created_at) };
 }
 
 function SendIcon() {
@@ -75,24 +101,103 @@ function TypingDots() {
   );
 }
 
-export function ChatScreen() {
+export function ChatScreen({ navigation, route }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [publishedLabels, setPublishedLabels] = useState<string[]>([]);
+  const [activeLabels, setActiveLabels] = useState<string[]>([]);
+
   const scrollRef = useRef<ScrollView>(null);
   const pulse = useRef(new Animated.Value(0.5)).current;
+  // Tracks what is currently loaded so we don't reload/wipe an active thread.
+  // null = nothing loaded yet, 'new' = a fresh unsaved chat, otherwise an id.
+  const loadedIdRef = useRef<string | 'new' | null>(null);
+
+  const openConversation = useCallback(async (id: string) => {
+    if (loadedIdRef.current === id) {
+      return;
+    }
+    loadedIdRef.current = id;
+    setLoadingHistory(true);
+    try {
+      // Load the most recent PAGE messages (the first call also tells us the total).
+      let detail = await getConversation(id, { limit: PAGE });
+      if (detail.message_count > PAGE) {
+        detail = await getConversation(id, { limit: PAGE, skip: detail.message_count - PAGE });
+      }
+      setConversationId(id);
+      setMessages(detail.messages.map(toUiMessage));
+    } catch (error) {
+      loadedIdRef.current = null; // allow a retry
+      Alert.alert('Could not load conversation', getApiErrorMessage(error));
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  const startNewChat = useCallback(() => {
+    loadedIdRef.current = 'new';
+    setConversationId(null);
+    setMessages([]);
+    setText('');
+    navigation.setParams({ conversationId: undefined });
+  }, [navigation]);
+
+  const resumeLast = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const recent = await getConversations({ source: 'chat', limit: 1 });
+      const last = recent[0];
+      if (last && last.message_count > 0) {
+        await openConversation(last.id);
+      } else {
+        loadedIdRef.current = 'new';
+      }
+    } catch {
+      loadedIdRef.current = 'new';
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [openConversation]);
+
+  // Open the requested conversation (from History), or resume the latest on first mount.
+  useEffect(() => {
+    const target = route.params?.conversationId;
+    if (target) {
+      openConversation(target);
+    } else if (loadedIdRef.current === null) {
+      resumeLast();
+    }
+  }, [route.params?.conversationId, openConversation, resumeLast]);
+
+  // Keep the published-reference labels fresh (a user may publish from History).
+  const refreshLabels = useCallback(async () => {
+    try {
+      const pubs = await getConversations({ is_published: true, limit: 50 });
+      const labels = Array.from(
+        new Set(
+          pubs
+            .map((c) => c.label)
+            .filter((l): l is string => !!l && l.trim().length > 0)
+        )
+      );
+      setPublishedLabels(labels);
+      setActiveLabels((prev) => prev.filter((l) => labels.includes(l)));
+    } catch {
+      // non-fatal — references are optional
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshLabels();
+    }, [refreshLabels])
+  );
 
   useEffect(() => {
-    setMessages([
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content:
-          'Welcome to IRONLOG AI. I can review your sessions, suggest progressive overload, and help tune your weekly split.',
-        timestamp: nowStamp()
-      }
-    ]);
-
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true }),
@@ -107,6 +212,12 @@ export function ChatScreen() {
     });
   }, [messages, sending]);
 
+  const toggleLabel = (label: string) => {
+    setActiveLabels((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
+    );
+  };
+
   const onSend = async () => {
     const value = text.trim();
     if (!value || sending) {
@@ -120,16 +231,23 @@ export function ChatScreen() {
       timestamp: nowStamp()
     };
 
-    const nextMessages = [...messages, userMessage];
-    setMessages(nextMessages);
+    setMessages((prev) => [...prev, userMessage]);
     setText('');
     setSending(true);
 
     try {
       const response = await sendChat({
         message: value,
-        history: nextMessages.map((m) => ({ role: m.role, content: m.content }))
+        conversation_id: conversationId ?? undefined,
+        reference_labels: activeLabels.length ? activeLabels : undefined
       });
+
+      // First turn of a new chat: adopt the conversation the server just created.
+      if (!conversationId) {
+        setConversationId(response.conversation_id);
+        loadedIdRef.current = response.conversation_id;
+        navigation.setParams({ conversationId: response.conversation_id });
+      }
 
       const botMessage: Message = {
         id: `${Date.now()}-a`,
@@ -162,47 +280,95 @@ export function ChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
     >
       <View style={styles.topBar}>
-        <View>
+        <View style={styles.topBarMain}>
           <Text style={styles.title}>AI COACH</Text>
           <View style={styles.subtitleRow}>
             <Animated.View style={[styles.liveDot, { opacity: pulse }]} />
-            <Text style={styles.subtitle}>Analysing your sessions</Text>
+            <Text style={styles.subtitle}>{sending ? 'Thinking…' : 'Remembers your chats'}</Text>
           </View>
         </View>
 
-        <View style={styles.botAvatar}>
-          <Text style={styles.botAvatarText}>🤖</Text>
+        <View style={styles.actions}>
+          <ScalePressable style={styles.actionBtn} onPress={() => navigation.navigate('Conversations')}>
+            <Text style={styles.actionText}>HISTORY</Text>
+          </ScalePressable>
+          <ScalePressable style={[styles.actionBtn, styles.actionBtnAccent]} onPress={startNewChat}>
+            <Text style={[styles.actionText, styles.actionTextAccent]}>+ NEW</Text>
+          </ScalePressable>
         </View>
       </View>
 
-      <ScrollView
-        ref={scrollRef}
-        style={styles.chatWrap}
-        contentContainerStyle={styles.chatContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {messages.map((message) => {
-          const isUser = message.role === 'user';
-          return (
-            <View key={message.id} style={[styles.bubbleWrap, isUser ? styles.userWrap : styles.botWrap]}>
-              {!isUser ? <Text style={styles.botLabel}>IRONLOG AI</Text> : null}
-              <View style={[styles.bubble, isUser ? styles.userBubble : styles.botBubble]}>
-                <Text style={[styles.bubbleText, isUser && styles.userBubbleText]}>{message.content}</Text>
-              </View>
-              <Text style={styles.timestamp}>{message.timestamp}</Text>
-            </View>
-          );
-        })}
+      {publishedLabels.length > 0 ? (
+        <View style={styles.refRow}>
+          <Text style={styles.refCaption}>REFERENCES</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.refChips}
+          >
+            {publishedLabels.map((label) => {
+              const active = activeLabels.includes(label);
+              return (
+                <ScalePressable
+                  key={label}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => toggleLabel(label)}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+                </ScalePressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
-        {sending ? (
-          <View style={[styles.bubbleWrap, styles.botWrap]}>
-            <Text style={styles.botLabel}>IRONLOG AI</Text>
-            <View style={[styles.bubble, styles.botBubble]}>
-              <TypingDots />
+      {loadingHistory && messages.length === 0 ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={COLORS.accent} />
+        </View>
+      ) : (
+        <ScrollView
+          ref={scrollRef}
+          style={styles.chatWrap}
+          contentContainerStyle={styles.chatContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {messages.length === 0 ? (
+            <View style={[styles.bubbleWrap, styles.botWrap]}>
+              <Text style={styles.botLabel}>IRONLOG AI</Text>
+              <View style={[styles.bubble, styles.botBubble]}>
+                <Text style={styles.bubbleText}>
+                  Welcome to IRONLOG AI. I remember our past chats and your sessions — ask about
+                  progression, volume, or recovery. You can also import a Gemini conversation from
+                  History.
+                </Text>
+              </View>
             </View>
-          </View>
-        ) : null}
-      </ScrollView>
+          ) : null}
+
+          {messages.map((message) => {
+            const isUser = message.role === 'user';
+            return (
+              <View key={message.id} style={[styles.bubbleWrap, isUser ? styles.userWrap : styles.botWrap]}>
+                {!isUser ? <Text style={styles.botLabel}>IRONLOG AI</Text> : null}
+                <View style={[styles.bubble, isUser ? styles.userBubble : styles.botBubble]}>
+                  <Text style={[styles.bubbleText, isUser && styles.userBubbleText]}>{message.content}</Text>
+                </View>
+                <Text style={styles.timestamp}>{message.timestamp}</Text>
+              </View>
+            );
+          })}
+
+          {sending ? (
+            <View style={[styles.bubbleWrap, styles.botWrap]}>
+              <Text style={styles.botLabel}>IRONLOG AI</Text>
+              <View style={[styles.bubble, styles.botBubble]}>
+                <TypingDots />
+              </View>
+            </View>
+          ) : null}
+        </ScrollView>
+      )}
 
       <View style={styles.inputBar}>
         <TextInput
@@ -241,6 +407,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center'
   },
+  topBarMain: {
+    flex: 1
+  },
   title: {
     color: COLORS.accent,
     fontFamily: FONT.display,
@@ -265,18 +434,74 @@ const styles = StyleSheet.create({
     fontFamily: FONT.body,
     fontSize: 12
   },
-  botAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.accent2,
-    borderWidth: 2,
-    borderColor: COLORS.accent,
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm
+  },
+  actionBtn: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surface2,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: 7
+  },
+  actionBtnAccent: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent
+  },
+  actionText: {
+    color: COLORS.text,
+    fontFamily: FONT.display,
+    fontSize: 14,
+    letterSpacing: 1
+  },
+  actionTextAccent: {
+    color: '#000'
+  },
+  refRow: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm
+  },
+  refCaption: {
+    color: COLORS.muted,
+    fontFamily: FONT.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.2
+  },
+  refChips: {
+    gap: SPACING.sm,
+    paddingRight: SPACING.md,
+    alignItems: 'center'
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface2,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6
+  },
+  chipActive: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent
+  },
+  chipText: {
+    color: COLORS.muted,
+    fontFamily: FONT.bodyMedium,
+    fontSize: 13
+  },
+  chipTextActive: {
+    color: '#000'
+  },
+  centered: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center'
-  },
-  botAvatarText: {
-    fontSize: 22
   },
   chatWrap: {
     flex: 1
