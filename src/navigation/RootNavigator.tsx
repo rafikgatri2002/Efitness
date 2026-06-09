@@ -1,5 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
@@ -79,11 +80,18 @@ function CoachStackNavigator() {
 }
 
 function MainTabsNavigator() {
+  // Add the device's bottom inset (gesture bar / nav buttons) so the footer
+  // never sits under the system navigation. Edge-to-edge draws behind it.
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarHideOnKeyboard: true,
+        tabBarStyle: [
+          styles.tabBar,
+          { height: 70 + insets.bottom, paddingBottom: 8 + insets.bottom }
+        ],
         tabBarLabelStyle: styles.tabBarLabel,
         tabBarActiveTintColor: COLORS.accent,
         tabBarInactiveTintColor: COLORS.muted,

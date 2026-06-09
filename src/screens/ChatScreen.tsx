@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -212,6 +213,15 @@ export function ChatScreen({ navigation, route }: Props) {
     });
   }, [messages, sending]);
 
+  // Opening the keyboard shrinks the chat viewport (the input bar is padded up),
+  // but doesn't change content size — so re-pin to the latest message here.
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    });
+    return () => sub.remove();
+  }, []);
+
   const toggleLabel = (label: string) => {
     setActiveLabels((prev) =>
       prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
@@ -276,8 +286,12 @@ export function ChatScreen({ navigation, route }: Props) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+      // 'padding' is driven by keyboard events (not window resize), so it lifts
+      // the input reliably under Android edge-to-edge — where adjustResize is a
+      // no-op (Expo SDK 53+/Android 15). The tab bar is hidden while typing via
+      // tabBarHideOnKeyboard, so the input sits flush above the keyboard.
+      behavior="padding"
+      keyboardVerticalOffset={0}
     >
       <View style={styles.topBar}>
         <View style={styles.topBarMain}>
@@ -332,6 +346,9 @@ export function ChatScreen({ navigation, route }: Props) {
           style={styles.chatWrap}
           contentContainerStyle={styles.chatContent}
           keyboardShouldPersistTaps="handled"
+          // Fires after the content is measured, so opening a conversation lands
+          // on the latest message (and new messages keep it pinned to the bottom).
+          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
         >
           {messages.length === 0 ? (
             <View style={[styles.bubbleWrap, styles.botWrap]}>
