@@ -7,8 +7,9 @@ import { useAuth } from '../services/AuthContext';
 import { COLORS, FONT } from '../components/theme';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
-import { HomeScreen } from '../screens/HomeScreen';
-import { ExercisesScreen } from '../screens/ExercisesScreen';
+import { CalendarScreen } from '../screens/CalendarScreen';
+import { DayScreen } from '../screens/DayScreen';
+import { WorkoutDetailScreen } from '../screens/WorkoutDetailScreen';
 import { SessionScreen } from '../screens/SessionScreen';
 import { ProgressScreen } from '../screens/ProgressScreen';
 import { ChatScreen } from '../screens/ChatScreen';
@@ -58,8 +59,9 @@ function CoachIcon({ color }: { color: string }) {
 function HomeStackNavigator() {
   return (
     <HomeStack.Navigator screenOptions={{ headerShown: false }}>
-      <HomeStack.Screen name="MusclesList" component={HomeScreen} />
-      <HomeStack.Screen name="Exercises" component={ExercisesScreen} />
+      <HomeStack.Screen name="Calendar" component={CalendarScreen} />
+      <HomeStack.Screen name="Day" component={DayScreen} />
+      <HomeStack.Screen name="Workout" component={WorkoutDetailScreen} />
       <HomeStack.Screen name="Session" component={SessionScreen} />
     </HomeStack.Navigator>
   );

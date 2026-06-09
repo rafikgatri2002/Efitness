@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-export const BASE_URL = 'http://192.168.1.186:8000';
+export const BASE_URL = 'http://192.168.1.139:8000';
 const TOKEN_KEY = 'ironlog_token';
 
 export const api = axios.create({
@@ -156,6 +156,7 @@ export const getSessions = async (exerciseId: string, limit = 10) => {
 
 export const createSession = async (payload: {
   exercise_id: string;
+  workout_id?: string;
   sets: SessionSet[];
   notes?: string;
 }) => {
@@ -163,16 +164,101 @@ export const createSession = async (payload: {
   return data;
 };
 
+// ── Workouts (training sessions: a titled, day-level container of muscle groups) ──
+export interface Workout {
+  id: string;
+  date: string;
+  title: string;
+  muscle_groups: string[];
+  exercise_count: number;
+}
+
+export interface ExerciseInWorkout {
+  id: string;
+  name: string;
+  emoji: string;
+  muscle: string;
+  logged_set_count: number;
+  last_summary?: string | null;
+}
+
+export interface MuscleGroupBlock {
+  muscle: string;
+  exercises: ExerciseInWorkout[];
+}
+
+export interface WorkoutDetail {
+  id: string;
+  date: string;
+  title: string;
+  muscle_groups: MuscleGroupBlock[];
+}
+
+export const getWorkouts = async (params: {
+  start?: string;
+  end?: string;
+  date?: string;
+}) => {
+  const { data } = await api.get<Workout[]>('/workouts', { params });
+  return data;
+};
+
+export const createWorkout = async (payload: { date: string; title: string }) => {
+  const { data } = await api.post<Workout>('/workouts', payload);
+  return data;
+};
+
+export const getWorkout = async (id: string) => {
+  const { data } = await api.get<WorkoutDetail>(`/workouts/${id}`);
+  return data;
+};
+
+export const updateWorkout = async (id: string, payload: { title: string }) => {
+  const { data } = await api.put<WorkoutDetail>(`/workouts/${id}`, payload);
+  return data;
+};
+
+export const addMuscleGroup = async (id: string, muscle: string) => {
+  const { data } = await api.post<WorkoutDetail>(`/workouts/${id}/muscle-groups`, {
+    muscle
+  });
+  return data;
+};
+
+export const removeMuscleGroup = async (id: string, muscle: string) => {
+  const { data } = await api.delete<WorkoutDetail>(
+    `/workouts/${id}/muscle-groups/${muscle}`
+  );
+  return data;
+};
+
+export const deleteWorkout = async (id: string) => {
+  await api.delete(`/workouts/${id}`);
+};
+
 export const getProgressOverview = async () => {
   const { data } = await api.get<ProgressOverview>('/progress/overview');
   return data;
 };
 
+export interface ExerciseProgress {
+  exercise_id: string;
+  exercise_name: string;
+  emoji: string;
+  personal_best: number;
+  history: ExerciseProgressPoint[];
+}
+
 export const getExerciseProgress = async (exerciseId: string, days = 120) => {
-  const { data } = await api.get<ExerciseProgressPoint[]>(`/progress/exercise/${exerciseId}`, {
-    params: { days }
-  });
-  return data;
+  const { data } = await api.get<ExerciseProgress | ExerciseProgressPoint[]>(
+    `/progress/exercise/${exerciseId}`,
+    { params: { days } }
+  );
+  // Backend returns an object wrapping the points under `history`.
+  if (Array.isArray(data)) {
+    return data;
+  }
+  return data?.history ?? [];
 };
 
 export const sendChat = async (payload: {

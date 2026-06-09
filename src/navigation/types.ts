@@ -4,9 +4,15 @@ export type AuthStackParamList = {
 };
 
 export type HomeStackParamList = {
-  MusclesList: undefined;
-  Exercises: { muscle: string; emoji: string };
-  Session: { exerciseId: string; exerciseName: string; emoji: string };
+  Calendar: undefined;
+  Day: { date: string }; // YYYY-MM-DD
+  Workout: { workoutId: string; title: string; date: string };
+  Session: {
+    exerciseId: string;
+    exerciseName: string;
+    emoji: string;
+    workoutId: string;
+  };
 };
 
 export type MainTabParamList = {

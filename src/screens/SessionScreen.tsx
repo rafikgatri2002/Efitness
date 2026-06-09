@@ -40,7 +40,7 @@ function emptySet(nextNumber: number): EditableSet {
 }
 
 export function SessionScreen({ route, navigation }: Props) {
-  const { exerciseId, exerciseName, emoji } = route.params;
+  const { exerciseId, exerciseName, emoji, workoutId } = route.params;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sets, setSets] = useState<EditableSet[]>([emptySet(1)]);
@@ -130,6 +130,7 @@ export function SessionScreen({ route, navigation }: Props) {
     try {
       await createSession({
         exercise_id: exerciseId,
+        workout_id: workoutId,
         sets: parsed,
         notes: notes.trim() || undefined
       });

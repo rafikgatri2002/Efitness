@@ -22,7 +22,7 @@ import {
   ProgressOverview
 } from '../services/api';
 
-type ExerciseOption = { id: number; name: string };
+type ExerciseOption = { id: string; name: string };
 
 function monthShort(date: string) {
   const d = new Date(date);
@@ -106,6 +106,9 @@ export function ProgressScreen() {
   }, [loadOverview]);
 
   const chartPoints = useMemo(() => {
+    if (!Array.isArray(chartData)) {
+      return [];
+    }
     return chartData.map((point) => ({
       x: monthShort(point.date) || point.date,
       y: point.max_weight
