@@ -5,6 +5,8 @@ import {
   me,
   register as apiRegister,
   tokenStorage,
+  updateProfile as apiUpdateProfile,
+  UpdateProfilePayload,
   UserProfile
 } from './api';
 
@@ -14,6 +16,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  updateProfile: (payload: UpdateProfilePayload) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -63,6 +66,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(profile);
   };
 
+  const updateProfile = async (payload: UpdateProfilePayload) => {
+    const profile = await apiUpdateProfile(payload);
+    setUser(profile);
+  };
+
   const logout = async () => {
     await tokenStorage.remove();
     setToken(null);
@@ -70,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value = useMemo(
-    () => ({ user, token, loading, login, register, logout }),
+    () => ({ user, token, loading, login, register, updateProfile, logout }),
     [user, token, loading]
   );
 

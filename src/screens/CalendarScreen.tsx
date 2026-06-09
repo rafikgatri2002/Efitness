@@ -21,7 +21,7 @@ function monthRange(viewDate: Date) {
 
 export function CalendarScreen() {
   const navigation = useNavigation<Nav>();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [viewDate, setViewDate] = useState(() => new Date());
   const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
 
@@ -55,7 +55,7 @@ export function CalendarScreen() {
           <Text style={styles.title}>TRAINING</Text>
           <Text style={styles.subtitle}>Your training journal</Text>
         </View>
-        <ScalePressable onPress={logout}>
+        <ScalePressable onPress={() => navigation.navigate('Profile')}>
           <Avatar name={user?.name ?? 'User'} />
         </ScalePressable>
       </View>

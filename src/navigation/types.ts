@@ -5,6 +5,7 @@ export type AuthStackParamList = {
 
 export type HomeStackParamList = {
   Calendar: undefined;
+  Profile: undefined;
   Day: { date: string }; // YYYY-MM-DD
   Workout: { workoutId: string; title: string; date: string };
   Session: {

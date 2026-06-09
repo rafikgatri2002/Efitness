@@ -8,6 +8,7 @@ import { COLORS, FONT } from '../components/theme';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
 import { CalendarScreen } from '../screens/CalendarScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
 import { DayScreen } from '../screens/DayScreen';
 import { WorkoutDetailScreen } from '../screens/WorkoutDetailScreen';
 import { SessionScreen } from '../screens/SessionScreen';
@@ -60,6 +61,7 @@ function HomeStackNavigator() {
   return (
     <HomeStack.Navigator screenOptions={{ headerShown: false }}>
       <HomeStack.Screen name="Calendar" component={CalendarScreen} />
+      <HomeStack.Screen name="Profile" component={ProfileScreen} />
       <HomeStack.Screen name="Day" component={DayScreen} />
       <HomeStack.Screen name="Workout" component={WorkoutDetailScreen} />
       <HomeStack.Screen name="Session" component={SessionScreen} />

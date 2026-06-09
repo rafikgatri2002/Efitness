@@ -1,5 +1,3 @@
-import { StyleSheet } from 'react-native';
-
 export const COLORS = {
   bg: '#0a0a0a',
   surface: '#141414',
@@ -35,33 +33,3 @@ export const FONT = {
   bodyMedium: 'DMSans_500Medium',
   bodyBold: 'DMSans_700Bold'
 } as const;
-
-export const globalStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bg
-  },
-  screenPadding: {
-    paddingHorizontal: SPACING.md
-  },
-  titleDisplay: {
-    color: COLORS.accent,
-    fontFamily: FONT.display,
-    textTransform: 'uppercase',
-    letterSpacing: 2
-  },
-  body: {
-    color: COLORS.text,
-    fontFamily: FONT.body
-  },
-  muted: {
-    color: COLORS.muted,
-    fontFamily: FONT.body
-  },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
-    borderWidth: 1,
-    borderRadius: RADIUS.lg
-  }
-});

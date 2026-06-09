@@ -28,10 +28,26 @@ export interface AuthResponse {
   name: string;
 }
 
+export type Gender = 'male' | 'female' | 'other';
+
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
+  username?: string | null;
+  gender?: Gender | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  created_at?: string;
+}
+
+export interface UpdateProfilePayload {
+  name?: string;
+  username?: string;
+  gender?: Gender;
+  height_cm?: number;
+  weight_kg?: number;
+  password?: string;
 }
 
 export interface MuscleItem {
@@ -118,6 +134,11 @@ export const me = async () => {
   return data;
 };
 
+export const updateProfile = async (payload: UpdateProfilePayload) => {
+  const { data } = await api.put<UserProfile>('/auth/me', payload);
+  return data;
+};
+
 export const getMuscles = async () => {
   const { data } = await api.get<MuscleItem[]>('/muscles');
   return data;
@@ -145,13 +166,6 @@ export const createExercise = async (payload: {
 
 export const deleteExercise = async (id: string) => {
   await api.delete(`/exercises/${id}`);
-};
-
-export const getSessions = async (exerciseId: string, limit = 10) => {
-  const { data } = await api.get('/sessions', {
-    params: { exercise_id: exerciseId, limit }
-  });
-  return data;
 };
 
 export const createSession = async (payload: {
