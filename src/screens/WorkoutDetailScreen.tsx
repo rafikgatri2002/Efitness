@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,6 +17,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, FONT, RADIUS, SPACING } from '../components/theme';
 import { ScalePressable } from '../components/ScalePressable';
+import { imageUrlFor, searchExercises } from '../data/exerciseLibrary';
 import { HomeStackParamList } from '../navigation/types';
 import {
   addMuscleGroup,
@@ -60,7 +62,16 @@ export function WorkoutDetailScreen({ route, navigation }: Props) {
   const [addMuscle, setAddMuscle] = useState<string | null>(null);
   const [exName, setExName] = useState('');
   const [exEmoji, setExEmoji] = useState('🏋️');
+  // Image URL chosen from the exercise library (null until one is picked).
+  const [exImage, setExImage] = useState<string | null>(null);
   const [savingExercise, setSavingExercise] = useState(false);
+
+  // Library suggestions for the add-exercise search. Hidden once an exercise is
+  // picked (its image is set); reappears when the name is edited again.
+  const libraryResults = useMemo(() => {
+    if (!addMuscle || exImage) return [];
+    return searchExercises(exName, addMuscle, 8);
+  }, [addMuscle, exName, exImage]);
 
   const load = useCallback(async () => {
     try {
@@ -141,6 +152,18 @@ export function WorkoutDetailScreen({ route, navigation }: Props) {
     setAddMuscle(muscle);
     setExName('');
     setExEmoji('🏋️');
+    setExImage(null);
+  };
+
+  // Editing the name invalidates a previously picked library image.
+  const onChangeExName = (text: string) => {
+    setExName(text);
+    if (exImage) setExImage(null);
+  };
+
+  const pickLibraryExercise = (name: string, image: string | null) => {
+    setExName(name);
+    setExImage(image);
   };
 
   const saveExercise = async () => {
@@ -153,7 +176,8 @@ export function WorkoutDetailScreen({ route, navigation }: Props) {
       await createExercise({
         muscle: addMuscle,
         name: exName.trim(),
-        emoji: exEmoji.trim() || '🏋️'
+        emoji: exEmoji.trim() || '🏋️',
+        image_url: exImage ?? undefined
       });
       setAddMuscle(null);
       await load();
@@ -259,7 +283,11 @@ export function WorkoutDetailScreen({ route, navigation }: Props) {
                         }
                         onLongPress={() => confirmDeleteExercise(ex.id, ex.name)}
                       >
-                        <Text style={styles.exerciseEmoji}>{ex.emoji || '🏋️'}</Text>
+                        {ex.image_url ? (
+                          <Image source={{ uri: ex.image_url }} style={styles.exerciseThumb} />
+                        ) : (
+                          <Text style={styles.exerciseEmoji}>{ex.emoji || '🏋️'}</Text>
+                        )}
                         <View style={styles.exerciseMain}>
                           <Text style={styles.exerciseName}>{ex.name}</Text>
                           <Text style={styles.exerciseMeta}>
@@ -346,21 +374,76 @@ export function WorkoutDetailScreen({ route, navigation }: Props) {
                 <Text style={styles.label}>EXERCISE NAME</Text>
                 <TextInput
                   value={exName}
-                  onChangeText={setExName}
+                  onChangeText={onChangeExName}
                   style={styles.input}
-                  placeholder="Bench Press"
+                  placeholder="Search e.g. Incline Dumbbell Press"
                   placeholderTextColor={COLORS.muted}
                   autoFocus
                 />
 
-                <Text style={styles.label}>EMOJI ICON</Text>
-                <TextInput
-                  value={exEmoji}
-                  onChangeText={setExEmoji}
-                  style={[styles.input, styles.emojiInput]}
-                  placeholder="🏋️"
-                  placeholderTextColor={COLORS.muted}
-                />
+                {exImage ? (
+                  // A library exercise is selected — show its illustration.
+                  <View style={styles.selectedPreview}>
+                    <Image source={{ uri: exImage }} style={styles.previewImage} />
+                    <View style={styles.previewMain}>
+                      <Text style={styles.previewName} numberOfLines={2}>
+                        {exName}
+                      </Text>
+                      <Text style={styles.previewHint}>Illustrated exercise</Text>
+                    </View>
+                    <ScalePressable
+                      style={styles.previewClear}
+                      onPress={() => setExImage(null)}
+                    >
+                      <Text style={styles.previewClearText}>✕</Text>
+                    </ScalePressable>
+                  </View>
+                ) : libraryResults.length > 0 ? (
+                  <ScrollView
+                    style={styles.results}
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled
+                  >
+                    {libraryResults.map((item) => {
+                      const uri = imageUrlFor(item.img);
+                      return (
+                        <ScalePressable
+                          key={item.id}
+                          style={styles.resultRow}
+                          onPress={() => pickLibraryExercise(item.name, uri)}
+                        >
+                          {uri ? (
+                            <Image source={{ uri }} style={styles.resultThumb} />
+                          ) : (
+                            <View style={styles.resultThumb} />
+                          )}
+                          <View style={styles.resultMain}>
+                            <Text style={styles.resultName} numberOfLines={1}>
+                              {item.name}
+                            </Text>
+                            {item.equipment ? (
+                              <Text style={styles.resultMeta} numberOfLines={1}>
+                                {item.equipment}
+                              </Text>
+                            ) : null}
+                          </View>
+                        </ScalePressable>
+                      );
+                    })}
+                  </ScrollView>
+                ) : (
+                  // No library match — fall back to a manual emoji for a custom name.
+                  <>
+                    <Text style={styles.label}>EMOJI ICON</Text>
+                    <TextInput
+                      value={exEmoji}
+                      onChangeText={setExEmoji}
+                      style={[styles.input, styles.emojiInput]}
+                      placeholder="🏋️"
+                      placeholderTextColor={COLORS.muted}
+                    />
+                  </>
+                )}
 
                 <View style={styles.modalButtons}>
                   <ScalePressable style={styles.cancelButton} onPress={() => setAddMuscle(null)}>
@@ -500,6 +583,13 @@ const styles = StyleSheet.create({
     fontSize: 22,
     marginRight: SPACING.sm
   },
+  exerciseThumb: {
+    width: 38,
+    height: 38,
+    borderRadius: RADIUS.sm,
+    marginRight: SPACING.sm,
+    backgroundColor: COLORS.surface
+  },
   exerciseMain: {
     flex: 1
   },
@@ -635,6 +725,88 @@ const styles = StyleSheet.create({
   emojiInput: {
     textAlign: 'center',
     fontSize: 28
+  },
+  results: {
+    maxHeight: 260,
+    marginTop: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surface2
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.xs + 2,
+    paddingHorizontal: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border
+  },
+  resultThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.sm,
+    marginRight: SPACING.sm,
+    backgroundColor: COLORS.surface
+  },
+  resultMain: {
+    flex: 1
+  },
+  resultName: {
+    color: COLORS.text,
+    fontFamily: FONT.bodyMedium,
+    fontSize: 15
+  },
+  resultMeta: {
+    color: COLORS.muted,
+    fontFamily: FONT.body,
+    fontSize: 12,
+    textTransform: 'capitalize',
+    marginTop: 1
+  },
+  selectedPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.accent,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surface2
+  },
+  previewImage: {
+    width: 56,
+    height: 56,
+    borderRadius: RADIUS.sm,
+    marginRight: SPACING.sm,
+    backgroundColor: COLORS.surface
+  },
+  previewMain: {
+    flex: 1
+  },
+  previewName: {
+    color: COLORS.text,
+    fontFamily: FONT.bodyBold,
+    fontSize: 15
+  },
+  previewHint: {
+    color: COLORS.accent,
+    fontFamily: FONT.body,
+    fontSize: 12,
+    marginTop: 2
+  },
+  previewClear: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface
+  },
+  previewClearText: {
+    color: COLORS.muted,
+    fontSize: 16,
+    fontFamily: FONT.bodyBold
   },
   modalButtons: {
     flexDirection: 'row',

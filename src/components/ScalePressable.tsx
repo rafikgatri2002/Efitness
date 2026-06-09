@@ -3,11 +3,15 @@ import {
   Animated,
   GestureResponderEvent,
   Pressable,
-  PressableProps
+  PressableProps,
+  StyleProp,
+  StyleSheet,
+  ViewStyle
 } from 'react-native';
 
-interface ScalePressableProps extends PressableProps {
+interface ScalePressableProps extends Omit<PressableProps, 'style'> {
   scaleTo?: number;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function ScalePressable({
@@ -15,6 +19,7 @@ export function ScalePressable({
   scaleTo = 0.97,
   onPressIn,
   onPressOut,
+  style,
   ...rest
 }: ScalePressableProps) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -38,11 +43,28 @@ export function ScalePressable({
     onPressOut?.(event);
   };
 
+  // The wrapper owns the layout footprint (width/margins) so percentage widths
+  // and flex sizing resolve against the parent. The Pressable just fills it.
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable {...rest} onPressIn={handlePressIn} onPressOut={handlePressOut}>
+    <Animated.View style={[{ transform: [{ scale }] }, style]}>
+      <Pressable
+        {...rest}
+        style={styles.fill}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+      >
         {children}
       </Pressable>
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  // Fill the wrapper's width so tap targets span the cell/button. Height stays
+  // content-driven — a percentage height against an auto-height parent is 0.
+  fill: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center'
+  }
+});

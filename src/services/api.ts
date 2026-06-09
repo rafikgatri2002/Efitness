@@ -180,6 +180,7 @@ export interface ExerciseInWorkout {
   muscle: string;
   logged_set_count: number;
   last_summary?: string | null;
+  image_url?: string | null;
 }
 
 export interface MuscleGroupBlock {

@@ -43,15 +43,19 @@ export function MonthCalendar({
   const month = viewDate.getMonth();
   const today = todayKey();
 
-  const cells = useMemo(() => {
+  const weeks = useMemo(() => {
     const firstWeekday = new Date(year, month, 1).getDay(); // 0=Sun
     const lead = (firstWeekday + 6) % 7; // shift to Monday-first
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const out: (number | null)[] = [];
-    for (let i = 0; i < lead; i += 1) out.push(null);
-    for (let d = 1; d <= daysInMonth; d += 1) out.push(d);
-    while (out.length % 7 !== 0) out.push(null);
-    return out;
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < lead; i += 1) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    // Chunk into rows of 7 so each week renders as its own flex row. This keeps
+    // exactly 7 columns regardless of sub-pixel rounding.
+    const rows: (number | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+    return rows;
   }, [year, month]);
 
   return (
@@ -77,41 +81,45 @@ export function MonthCalendar({
       </View>
 
       <View style={styles.grid}>
-        {cells.map((day, index) => {
-          if (day === null) {
-            return <View key={`blank-${index}`} style={styles.cell} />;
-          }
-          const key = ymd(year, month, day);
-          const isToday = key === today;
-          const isSelected = key === selectedKey;
-          const isMarked = markedKeys.has(key);
-          return (
-            <ScalePressable key={key} style={styles.cell} onPress={() => onSelectDay(key)}>
-              <View
-                style={[
-                  styles.dayInner,
-                  isToday && styles.dayToday,
-                  isSelected && styles.daySelected
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.dayText,
-                    isSelected && styles.dayTextSelected,
-                    isToday && !isSelected && styles.dayTextToday
-                  ]}
-                >
-                  {day}
-                </Text>
-              </View>
-              {isMarked ? (
-                <View style={[styles.dot, isSelected && styles.dotSelected]} />
-              ) : (
-                <View style={styles.dotPlaceholder} />
-              )}
-            </ScalePressable>
-          );
-        })}
+        {weeks.map((week, weekIndex) => (
+          <View key={`week-${weekIndex}`} style={styles.weekLine}>
+            {week.map((day, dayIndex) => {
+              if (day === null) {
+                return <View key={`blank-${weekIndex}-${dayIndex}`} style={styles.cell} />;
+              }
+              const key = ymd(year, month, day);
+              const isToday = key === today;
+              const isSelected = key === selectedKey;
+              const isMarked = markedKeys.has(key);
+              return (
+                <ScalePressable key={key} style={styles.cell} onPress={() => onSelectDay(key)}>
+                  <View
+                    style={[
+                      styles.dayInner,
+                      isToday && styles.dayToday,
+                      isSelected && styles.daySelected
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        isSelected && styles.dayTextSelected,
+                        isToday && !isSelected && styles.dayTextToday
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                  </View>
+                  {isMarked ? (
+                    <View style={[styles.dot, isSelected && styles.dotSelected]} />
+                  ) : (
+                    <View style={styles.dotPlaceholder} />
+                  )}
+                </ScalePressable>
+              );
+            })}
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -159,7 +167,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs
   },
   weekday: {
-    width: `${100 / 7}%`,
+    flex: 1,
     textAlign: 'center',
     color: COLORS.muted,
     fontFamily: FONT.bodyBold,
@@ -167,11 +175,13 @@ const styles = StyleSheet.create({
     letterSpacing: 1
   },
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap'
+    flexDirection: 'column'
+  },
+  weekLine: {
+    flexDirection: 'row'
   },
   cell: {
-    width: `${100 / 7}%`,
+    flex: 1,
     alignItems: 'center',
     paddingVertical: 4
   },
