@@ -22,11 +22,13 @@ npm install
 
 ## 3) Set backend URL
 
-Edit BASE_URL in src/services/api.ts:
+The app points at the deployed backend in src/services/api.ts:
 
 ```ts
-export const BASE_URL = 'http://192.168.1.100:8000';
+export const BASE_URL = 'https://efitness-backend-2530307.azurewebsites.net';
 ```
+
+To point at a different backend (e.g. a local dev server), edit that one line.
 
 ## 4) Run
 
