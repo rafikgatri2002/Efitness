@@ -12,6 +12,7 @@ import {
 import { ActivityIndicator, View } from 'react-native';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { AuthProvider } from './src/services/AuthContext';
+import { UpdatePrompt } from './src/components/UpdatePrompt';
 import { COLORS } from './src/components/theme';
 
 const navTheme = {
@@ -57,6 +58,7 @@ export default function App() {
           <StatusBar style="light" />
           <RootNavigator />
         </NavigationContainer>
+        <UpdatePrompt />
       </AuthProvider>
     </SafeAreaProvider>
   );

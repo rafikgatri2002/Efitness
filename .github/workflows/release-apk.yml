@@ -1,0 +1,142 @@
+# Push to main -> build APK in Expo's cloud (EAS) -> publish a GitHub Release.
+#
+# How a release happens:
+#   - Every push to main (except .md/docs-only changes, see paths-ignore)
+#     starts an EAS cloud build with the "preview" profile (APK, signed with
+#     the EAS-managed keystore that already lives on Expo's servers).
+#   - The release tag comes from app.json's "version": 1.0.1 -> v1.0.1.
+#   - If that release does not exist yet, it is created. If it already exists,
+#     its ironlog.apk asset is OVERWRITTEN (gh release upload --clobber) so a
+#     re-run never fails. The intended flow is still: every user-visible
+#     update bumps "version" in app.json, producing a NEW release.
+#   - android.versionCode is handled by EAS remote version management
+#     (eas.json: "appVersionSource": "remote" + "autoIncrement": true) - each
+#     build gets the next versionCode automatically; nobody edits it by hand.
+#
+# The asset is ALWAYS named exactly "ironlog.apk" so this URL never breaks:
+#   https://github.com/IronLogEfitness/Efitness_frontend/releases/latest/download/ironlog.apk
+#
+# Secrets: EXPO_TOKEN (repo Actions secret holding an expo.dev access token).
+# Releases are published with the built-in GITHUB_TOKEN via the
+# "contents: write" permission below - no other secrets exist.
+#
+# Cost honesty: each run consumes one EAS build from the monthly free-tier
+# quota, and --wait keeps this runner alive (GitHub Actions minutes) while the
+# build sits in Expo's queue - 30-60 minutes end to end is normal, hence
+# timeout-minutes: 120. The no-idle alternative is `eas build --no-wait` plus
+# an EAS build webhook (eas webhook:create) that triggers a second workflow
+# when the build finishes; this file deliberately uses the simpler --wait
+# version.
+
+name: Release APK
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+# One release pipeline at a time. A run that is already building is NOT
+# cancelled (that would orphan an EAS build already running in Expo's cloud);
+# of the runs queued behind it, only the newest is kept.
+concurrency:
+  group: release-apk
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: EAS build and GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write # lets GITHUB_TOKEN create tags/releases and upload assets
+    steps:
+      - name: Fail fast if EXPO_TOKEN is not configured
+        env:
+          EXPO_TOKEN_SET: ${{ secrets.EXPO_TOKEN != '' }}
+        run: |
+          if [ "$EXPO_TOKEN_SET" != "true" ]; then
+            echo "::error::Missing EXPO_TOKEN secret. Create a token at https://expo.dev/settings/access-tokens and add it under repo Settings -> Secrets and variables -> Actions -> New repository secret (name: EXPO_TOKEN)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up EAS CLI (authenticated via EXPO_TOKEN)
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read release version from app.json
+        id: version
+        run: |
+          VERSION=$(jq -r '.expo.version // empty' app.json)
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not read .expo.version from app.json"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      # The build runs in Expo's cloud with the EAS-managed keystore; this
+      # runner only waits for it and parses the result JSON (build logs go to
+      # stderr, so stdout is clean JSON).
+      - name: Build APK on EAS and wait for it to finish
+        id: build
+        run: |
+          eas build --platform android --profile preview --non-interactive --json --wait > build.json
+          STATUS=$(jq -r '.[0].status' build.json)
+          APK_URL=$(jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // empty' build.json)
+          if [ "$STATUS" != "FINISHED" ] || [ -z "$APK_URL" ]; then
+            echo "::error::EAS build did not finish cleanly (status: ${STATUS}). Open the build logs at https://expo.dev/accounts/mrfiko69/projects/ironlog-app/builds"
+            exit 1
+          fi
+          echo "apk_url=${APK_URL}" >> "$GITHUB_OUTPUT"
+
+      # EAS artifact URLs expire after ~13 days, so the APK is re-hosted on
+      # GitHub Releases. This fetch is the one server-side use of the EAS URL;
+      # it is never shown to end users.
+      - name: Download the APK from EAS storage
+        run: curl --fail --location --retry 3 --output ironlog.apk "${{ steps.build.outputs.apk_url }}"
+
+      - name: Create the release, or overwrite its APK if the tag already exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" --json tagName > /dev/null 2>&1; then
+            echo "Release ${TAG} already exists - replacing its ironlog.apk asset."
+            gh release upload "$TAG" ironlog.apk --clobber
+          else
+            {
+              printf 'Automated build of %s.\n\n' "$GITHUB_SHA"
+              printf '**Download:** https://github.com/%s/releases/download/%s/ironlog.apk\n' "$GITHUB_REPOSITORY" "$TAG"
+              printf '**Always newest:** https://github.com/%s/releases/latest/download/ironlog.apk\n' "$GITHUB_REPOSITORY"
+            } > notes.md
+            gh release create "$TAG" ironlog.apk \
+              --title "IronLog $TAG" \
+              --latest \
+              --generate-notes \
+              --notes-file notes.md
+          fi
+
+      - name: Write run summary
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          {
+            echo "## Released ${TAG}"
+            echo ""
+            echo "[Download ironlog.apk](https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/ironlog.apk)"
+          } >> "$GITHUB_STEP_SUMMARY"

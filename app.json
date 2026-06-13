@@ -2,7 +2,7 @@
   "expo": {
     "name": "IronLog",
     "slug": "ironlog-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "splash": {
@@ -16,7 +16,6 @@
     },
     "android": {
       "package": "com.ironlog.app",
-      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0a0a0a"
       }
